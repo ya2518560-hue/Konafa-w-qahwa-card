@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>لوحة الأدمن</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4efe8;color:#2b1d17;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:12px 12px calc(20px + env(safe-area-inset-bottom,0px))}
+main{max-width:560px;margin:0 auto}
+h2{font-size:17px;margin:0 0 10px}
+.c{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid #e6dccd}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1}
+button{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid #cdbba4;background:#fff;color:#2b1d17;cursor:pointer}
+button.p,.tabs button.on{background:#3b241b;color:#EDD8B8;border-color:#3b241b;font-weight:700}
+button.sm{padding:5px 9px;font-size:13px}
+input{font:inherit;width:100%;padding:10px;border:1px solid #cdbba4;border-radius:10px;margin:4px 0 8px;background:#fff;color:#222}
+label{font-size:13px;color:#7a6a5c}
+video{width:100%;border-radius:12px;background:#000;max-height:50vh}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed #e6dccd}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.big{font-size:30px;font-weight:800;text-align:center;margin:6px 0}
+.hide{display:none}.bad{color:#b91c1c}.mut{color:#7a6a5c;font-size:13px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+</style>
+</head>
+<body><main>
+<div id="login" class="c"><h2>دخول الأدمن</h2>
+  <label>الإيميل</label><input id="lm" type="email"><label>الباسورد</label><input id="lp" type="password">
+  <button class="p" id="lgo" style="width:100%">دخول</button><div id="lerr" class="bad"></div></div>
+<div id="app" class="hide">
+  <div class="tabs"><button data-t="t1" class="on">📷 مسح</button><button data-t="t2">👥 العملاء</button><button data-t="t3">⚙️ الكارت</button><button id="lout">خروج</button></div>
+
+  <div id="t1" class="c"><h2>مسح كود العميل</h2>
+    <video id="v" playsinline muted></video><canvas id="cv" class="hide"></canvas><div id="ss" class="mut" style="margin-top:6px"></div>
+    <button class="p" id="scan" style="width:100%;margin-top:8px">ابدأ المسح</button>
+    <div id="res" class="hide">
+      <div class="big" id="rn"></div><div class="mut" id="rp" style="text-align:center"></div>
+      <div class="big" id="rs"></div>
+      <div class="acts"><button class="p" id="a1">+1 ختم</button><button id="a2">+ عدد</button>
+      <button id="a3" class="p">استلام الجائزة</button><button id="a4">−1</button></div>
+    </div>
+  </div>
+
+  <div id="t2" class="c hide"><h2>العملاء <span class="mut" id="cnt"></span></h2>
+    <input id="q" placeholder="بحث بالاسم أو الموبايل"><div id="list"></div></div>
+
+  <div id="t3" class="hide">
+    <div class="c"><h2>شكل وبيانات كارت العميل</h2>
+      <label>اسم المحل</label><input id="cName"><label>الوصف</label><input id="cSub">
+      <label>رسالة الترحيب</label><input id="cWel">
+      <div class="g2"><div><label>عدد الأختام للجائزة</label><input id="cNeed" type="number" min="2" max="20"></div>
+      <div><label>الجائزة</label><input id="cRew"></div>
+      <div><label>لون الكارت</label><input id="cBg" type="color"></div><div><label>لون الكتابة/الأختام</label><input id="cInk" type="color"></div></div>
+      <label>تغيير اللوجو</label><input id="cLogo" type="file" accept="image/*">
+      <button class="p" id="save" style="width:100%">حفظ التعديلات</button><div id="sv" class="mut"></div>
+    </div>
+    <div class="c"><h2>رابط تسجيل العملاء</h2><div class="mut" id="lk"></div><div id="qr" style="margin-top:8px"></div>
+      <div class="mut">اطبع الكود ده وحطه في المحل. العميل يمسحه ويعمل كارته.</div></div>
+  </div>
+</div></main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* >>> نفس إعدادات Firebase اللي في index.html <<< */
+const firebaseConfig={apiKey:"AIzaSyBQH9qXBtI7KYK_Hh_yx65aPwa7y5_J3vA",authDomain:"konafa-w-qahwa.firebaseapp.com",projectId:"konafa-w-qahwa",storageBucket:"konafa-w-qahwa.firebasestorage.app",messagingSenderId:"205051978898",appId:"1:205051978898:web:ff94e9c482eb1ffc92b24b"};
+firebase.initializeApp(firebaseConfig);const db=firebase.firestore(),auth=firebase.auth(),FV=firebase.firestore.FieldValue;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cfgRef=db.collection("config").doc("main");
+const D={name:"كنافة وقهوة",sub:"أصل النابلسية",need:10,reward:"كنافة مجانية 🎁",welcome:"اجمع أختامك واستلم هديتك",bg:"#EDD8B8",ink:"#3b241b"};
+let cfg=D,customers=[],cur=null,unsubCur=null,subs=[],stream=null,scanning=false;
+
+/* دخول */
+$("lgo").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("lm").value.trim(),$("lp").value);$("lerr").textContent=""}catch(e){$("lerr").textContent="بيانات الدخول غلط"}};
+$("lout").onclick=()=>auth.signOut();
+auth.onAuthStateChanged(u=>{
+  $("login").classList.toggle("hide",!!u);$("app").classList.toggle("hide",!u);
+  subs.forEach(f=>f());subs=[];stopScan();
+  if(!u)return;
+  subs.push(cfgRef.onSnapshot(s=>{cfg={...D,...(s.exists?s.data():{})};fill()}));
+  subs.push(db.collection("customers").orderBy("created","desc").onSnapshot(s=>{customers=s.docs.map(d=>({id:d.id,...d.data()}));list()},e=>console.error(e)));
+  $("lk").textContent=location.href.replace(/admin\.html.*$/,"");
+  $("qr").innerHTML="";new QRCode($("qr"),{text:$("lk").textContent,width:170,height:170});
+});
+document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("[data-t]").forEach(x=>x.classList.toggle("on",x==b));
+  ["t1","t2","t3"].forEach(t=>$(t).classList.toggle("hide",t!=b.dataset.t));if(b.dataset.t!="t1")stopScan();
+});
+
+/* سكانر */
+async function startScan(){
+  $("res").classList.add("hide");
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})}catch(e){return alert("اسمح للكاميرا من المتصفح")}
+  $("v").srcObject=stream;await $("v").play();scanning=true;$("ss").textContent="وجّه الكاميرا على كود كارت العميل (من موبايل تاني)، وزوّد سطوع شاشته";tick();$("scan").textContent="إيقاف";
+}
+function stopScan(){scanning=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$("scan").textContent="ابدأ المسح"}
+$("scan").onclick=()=>scanning?stopScan():startScan();
+let useBD="BarcodeDetector" in window,BD=null;
+try{if(useBD)BD=new BarcodeDetector({formats:["qr_code"]})}catch(e){useBD=false}
+function got(t){
+  if(t.startsWith("KQ:")){stopScan();$("ss").textContent="";openCust(t.slice(3));return true}
+  $("ss").textContent="الكود ده مش كارت عميل: "+t.slice(0,40);return false;
+}
+async function tick(){
+  if(!scanning)return;const v=$("v"),c=$("cv");
+  try{
+    if(v.readyState===4&&v.videoWidth){
+      if(useBD){const r=await BD.detect(v);if(r.length&&got(r[0].rawValue))return}
+      else{const k=Math.min(1,640/v.videoWidth);c.width=Math.round(v.videoWidth*k);c.height=Math.round(v.videoHeight*k);
+        const x=c.getContext("2d",{willReadFrequently:true});x.drawImage(v,0,0,c.width,c.height);
+        const im=x.getImageData(0,0,c.width,c.height),r=jsQR(im.data,c.width,c.height,{inversionAttempts:"attemptBoth"});
+        if(r&&got(r.data))return}
+    }
+  }catch(e){if(useBD)useBD=false}
+  if(scanning)setTimeout(()=>requestAnimationFrame(tick),80);
+}
+function openCust(id){
+  if(unsubCur)unsubCur();cur=id;
+  unsubCur=db.collection("customers").doc(id).onSnapshot(s=>{
+    if(!s.exists){$("res").classList.add("hide");return alert("العميل غير موجود")}
+    const c=s.data(),need=+cfg.need;$("res").classList.remove("hide");
+    $("rn").textContent=c.name;$("rp").textContent=c.phone;$("rs").textContent=c.stamps+" / "+need+(c.rewards?"  (جوائز: "+c.rewards+")":"");
+    $("a3").disabled=c.stamps<need;$("a3").style.opacity=c.stamps<need?.4:1;
+  });
+}
+const upd=(id,o)=>db.collection("customers").doc(id).update(o);
+$("a1").onclick=()=>upd(cur,{stamps:FV.increment(1)});
+$("a2").onclick=()=>{const n=parseInt(prompt("كام ختم تضيف؟","2"));if(n>0)upd(cur,{stamps:FV.increment(n)})};
+$("a4").onclick=()=>upd(cur,{stamps:FV.increment(-1)});
+$("a3").onclick=()=>upd(cur,{stamps:FV.increment(-(+cfg.need)),rewards:FV.increment(1)});
+
+/* العملاء */
+function list(){
+  const q=$("q").value.trim().toLowerCase(),a=customers.filter(c=>!q||(c.name+c.phone).toLowerCase().includes(q));
+  $("cnt").textContent="("+customers.length+")";
+  $("list").innerHTML=a.map(c=>`<div class="row"><div><b>${esc(c.name)}</b><div class="mut">${esc(c.phone)} · ${c.stamps}/${cfg.need} · جوائز ${c.rewards||0}</div></div>
+  <div><button class="sm" data-o="${c.id}">فتح</button> <button class="sm" data-x="${c.id}">حذف</button></div></div>`).join("")||'<div class="mut">لا يوجد عملاء</div>';
+}
+$("q").oninput=list;
+$("list").onclick=e=>{const o=e.target.dataset.o,x=e.target.dataset.x;
+  if(o){document.querySelector('[data-t="t1"]').click();openCust(o)}
+  if(x&&confirm("حذف العميل؟"))db.collection("customers").doc(x).delete()};
+
+/* إعدادات الكارت */
+function fill(){
+  if(document.activeElement&&["cName","cSub","cWel","cNeed","cRew"].includes(document.activeElement.id))return;
+  $("cName").value=cfg.name;$("cSub").value=cfg.sub;$("cWel").value=cfg.welcome;$("cNeed").value=cfg.need;$("cRew").value=cfg.reward;$("cBg").value=cfg.bg;$("cInk").value=cfg.ink;list();
+}
+let newLogo=null;
+$("cLogo").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{
+  const c=document.createElement("canvas");c.width=c.height=240;const m=Math.min(im.width,im.height);
+  c.getContext("2d").drawImage(im,(im.width-m)/2,(im.height-m)/2,m,m,0,0,240,240);newLogo=c.toDataURL("image/jpeg",.85)};im.src=URL.createObjectURL(f)};
+$("save").onclick=async()=>{
+  const o={name:$("cName").value,sub:$("cSub").value,welcome:$("cWel").value,need:Math.max(2,Math.min(20,+$("cNeed").value||10)),reward:$("cRew").value,bg:$("cBg").value,ink:$("cInk").value};
+  if(newLogo)o.logo=newLogo;
+  try{await cfgRef.set(o,{merge:true});$("sv").textContent="تم الحفظ ✔ والتغيير ظهر عند العملاء";newLogo=null}catch(e){$("sv").textContent="تعذر الحفظ"}
+};
+</script>
+</body>
+</html>
